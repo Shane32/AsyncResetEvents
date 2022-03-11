@@ -70,7 +70,7 @@ public sealed class AsyncManualResetEvent
     /// <exception cref="ArgumentOutOfRangeException">The <paramref name="timeout"/> is less than zero and not <see cref="Timeout.InfiniteTimeSpan"/>.</exception>
     /// <exception cref="OperationCanceledException">The provided <paramref name="cancellationToken"/> was signaled.</exception>
     /// <exception cref="ObjectDisposedException">The provided <paramref name="cancellationToken"/> has already been disposed.</exception>
-    public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         => WaitAsync((int)timeout.TotalMilliseconds, cancellationToken);
 
     /// <summary>

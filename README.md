@@ -32,7 +32,7 @@ The methods are identical to above, with the addition of the `Reset` method.
 - `void Reset()`
 - `Task WaitAsync(CancellationToken cancellationToken = default)`
 - `Task<bool> WaitAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)`
-- `Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)`
+- `Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)`
 
 As a manual reset event, calling `WaitAsync` will wait until the event is signaled.
 Signaling the event with `Set` will result in the event staying signaled until `Reset` is
