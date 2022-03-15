@@ -13,6 +13,22 @@ public sealed class AsyncManualResetEvent
     private static readonly Task<bool> _taskFalse = Task.FromResult(false);
 
     /// <summary>
+    /// Initializes a new unsignaled instance.
+    /// </summary>
+    public AsyncManualResetEvent()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance set to signaled if specified.
+    /// </summary>
+    public AsyncManualResetEvent(bool signaled)
+    {
+        if (signaled)
+            Set(false);
+    }
+
+    /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.
     /// </summary>
     /// <param name="cancellationToken">A cancellation token to observe while waiting for the reset event to be signaled.</param>

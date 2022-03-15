@@ -57,6 +57,17 @@ public class ManualResetEventTests
     }
 
     [Fact]
+    public async Task StartsAsSpecified()
+    {
+        AsyncManualResetEvent reset = new();
+        Assert.False(await reset.WaitAsync(0));
+        reset = new(false);
+        Assert.False(await reset.WaitAsync(0));
+        reset = new(true);
+        Assert.True(await reset.WaitAsync(0));
+    }
+
+    [Fact]
     public async Task WorksWithDelay()
     {
         AsyncManualResetEvent reset = new();

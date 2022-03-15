@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
@@ -33,6 +33,7 @@
     <ProjectReference Include="..\AsyncResetEvents\Shane32.AsyncResetEvents.csproj" />
     <Using Include="Xunit"/>
     <Using Include="Shane32.AsyncResetEvents"/>
+    <Using Include="System.Text"/>
   </ItemGroup>
 
 </Project>
