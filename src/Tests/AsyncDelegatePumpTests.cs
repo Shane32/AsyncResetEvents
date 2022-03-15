@@ -129,4 +129,22 @@ public class AsyncDelegatePumpTests
         await task1;
         await Assert.ThrowsAnyAsync<ApplicationException>(() => task2);
     }
+
+    [Fact]
+    public async Task ValidateException3()
+    {
+        var task1 = _pump.SendAsync(async () => await Task.Delay(100));
+        var task2 = _pump.SendAsync(() => throw new ApplicationException("test"));
+        await task1;
+        await Assert.ThrowsAnyAsync<ApplicationException>(() => task2);
+    }
+
+    [Fact]
+    public async Task ValidateException4()
+    {
+        var task1 = _pump.SendAsync(async () => await Task.Delay(100));
+        var task2 = _pump.SendAsync<bool>(() => throw new ApplicationException("test"));
+        await task1;
+        await Assert.ThrowsAnyAsync<ApplicationException>(() => task2);
+    }
 }

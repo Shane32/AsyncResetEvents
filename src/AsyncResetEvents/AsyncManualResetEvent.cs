@@ -53,7 +53,7 @@ public sealed class AsyncManualResetEvent
     /// <exception cref="ObjectDisposedException">The provided <paramref name="cancellationToken"/> has already been disposed.</exception>
     public Task<bool> WaitAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
-        if (millisecondsTimeout < 0)
+        if (millisecondsTimeout < -1)
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
         cancellationToken.ThrowIfCancellationRequested();
         if (millisecondsTimeout == 0) {

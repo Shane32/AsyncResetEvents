@@ -3,11 +3,29 @@ namespace AsyncResetEventTests;
 public class ManualResetEventTests
 {
     [Fact]
+    public async Task InvalidTimespanThrows()
+    {
+        AsyncManualResetEvent reset = new();
+        await Assert.ThrowsAnyAsync<ArgumentOutOfRangeException>(() => reset.WaitAsync(TimeSpan.FromSeconds(-2)));
+    }
+
+    [Fact]
     public void DoesNotRunUntilSignaled()
     {
         bool ran = false;
         AsyncManualResetEvent reset = new();
         _ = reset.WaitAsync().ContinueWith(_ => ran = true, TaskContinuationOptions.ExecuteSynchronously);
+        Assert.False(ran);
+        reset.Set();
+        Assert.True(ran);
+    }
+
+    [Fact]
+    public void DoesNotRunUntilSignaled2()
+    {
+        bool ran = false;
+        AsyncManualResetEvent reset = new();
+        _ = reset.WaitAsync(-1).ContinueWith(_ => ran = true, TaskContinuationOptions.ExecuteSynchronously);
         Assert.False(ran);
         reset.Set();
         Assert.True(ran);
