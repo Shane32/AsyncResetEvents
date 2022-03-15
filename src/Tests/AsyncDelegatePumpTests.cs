@@ -83,4 +83,50 @@ public class AsyncDelegatePumpTests
         Assert.Equal(2, await task2);
         Verify("100 50 ");
     }
+
+    [Fact]
+    public async Task ValidateCancellation1()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        tcs.SetCanceled();
+        var task1 = _pump.SendAsync(async () => await Task.Delay(100));
+        var task2 = _pump.SendAsync(() => (Task)tcs.Task);
+        await task1;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task2);
+    }
+
+    [Fact]
+    public async Task ValidateCancellation2()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        tcs.SetCanceled();
+        var task1 = _pump.SendAsync(async () => await Task.Delay(100));
+        var task2 = _pump.SendAsync(() => tcs.Task);
+        await task1;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task2);
+    }
+
+    [Fact]
+    public async Task ValidateException1()
+    {
+        var task1 = _pump.SendAsync(async () => await Task.Delay(100));
+        var task2 = _pump.SendAsync(async () => {
+            await Task.Yield();
+            throw new ApplicationException("test");
+        });
+        await task1;
+        await Assert.ThrowsAnyAsync<ApplicationException>(() => task2);
+    }
+
+    [Fact]
+    public async Task ValidateException2()
+    {
+        var task1 = _pump.SendAsync(async () => await Task.Delay(100));
+        var task2 = _pump.SendAsync<bool>(async () => {
+            await Task.Yield();
+            throw new ApplicationException("test");
+        });
+        await task1;
+        await Assert.ThrowsAnyAsync<ApplicationException>(() => task2);
+    }
 }

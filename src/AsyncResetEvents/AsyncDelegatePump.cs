@@ -35,7 +35,7 @@ namespace Shane32.AsyncResetEvents
                 }
                 task.ContinueWith(task2 => {
                     if (task2.IsFaulted)
-                        tcs.SetException(task2.Exception!);
+                        tcs.SetException(task2.Exception!.GetBaseException());
                     else if (task2.IsCanceled)
                         tcs.SetCanceled();
                     else
@@ -66,7 +66,7 @@ namespace Shane32.AsyncResetEvents
                 }
                 task.ContinueWith(task2 => {
                     if (task2.IsFaulted)
-                        tcs.SetException(task2.Exception!);
+                        tcs.SetException(task2.Exception!.GetBaseException());
                     else if (task2.IsCanceled)
                         tcs.SetCanceled();
                     else
