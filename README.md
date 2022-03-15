@@ -39,3 +39,49 @@ Signaling the event with `Set` will result in the event staying signaled until `
 called.  As such, you may call `WaitAsync` any number of times on a signaled event and
 execution will continue.  If the reset event is not signaled, you may call `WaitAsync` any
 number of times and they will all wait until `Set` is called before executing.
+
+## AsyncMessagePump
+
+Synchronizes execution of a sequence of asynchronous tasks.  This maintains execution order
+while allowing tasks to be posted asynchronously to the queue.  The callback delegate may
+be an asynchronous or synchronous delegate.  Messages may be posted directly or an
+asynchronous operation that returns a message may be posted to the queue.  Regardless,
+execution order is maintained as of the point in time that `Post` was called, and
+the callback is never run on multiple threads at once.  If an asynchronous operation
+was posted and it throws an exception, or if the callback throws an exception, the exception
+is handled by the `HandleErrorAsync` protected method, which can be overridden by a user in
+a derived class.
+
+Constructors:
+
+- `AsyncMessagePump(Func<T, Task> callback)`
+- `AsyncMessagePump(Action<T> callback)`
+
+Public methods:
+
+- `void Post(T message)`
+- `void Post(Task<T> messageTask)`
+
+Protected methods:
+
+- `Task HandleErrorAsync(Exception exception)`
+
+## AsyncDelegatePump
+
+Synchronizes executes of asynchronous delegates.  Queued delegates executes in the order
+that they were queued with a call to `Post`.  This class is derived from `AsyncMessagePump`;
+see above for further details.  Also included is `SendAsync`, which will queue an asynchronous
+delegate and return its result after it executes (in its turn).  Any further code after
+awaiting a `Task` returned by `SendAsync` will not prevent additional delegates in the queue
+from executing.
+
+Public methods:
+
+- `void Post(Func<Task> message)`
+- `void Post(Task<Func<Task>> messageTask)` (inherited; not typically used)
+- `Task SendAsync(Func<Task> action)`
+- `Task<T> SendAsync<T>(Func<Task<T>> action)`
+
+Protected methods:
+
+- `Task HandleErrorAsync(Exception exception)` (not needed when `SendAsync` is used)
