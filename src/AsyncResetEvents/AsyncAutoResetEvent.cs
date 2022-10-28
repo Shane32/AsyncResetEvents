@@ -88,7 +88,7 @@ public sealed class AsyncAutoResetEvent
             Task completionTask;
             try {
                 completionTask = await Task.WhenAny(task, Task.Delay(millisecondsTimeout, cancellationToken)).ConfigureAwait(false);
-                await completionTask;
+                await completionTask.ConfigureAwait(false);
             }
             catch {
                 // when the queued task completion source completes, immediately trigger the next queued task,

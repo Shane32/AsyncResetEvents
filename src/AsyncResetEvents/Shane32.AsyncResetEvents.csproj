@@ -6,6 +6,8 @@
       Task-based implementations of ManualResetEvent and AutoResetEvent
     </Description>
     <RootNamespace>Shane32.AsyncResetEvents</RootNamespace>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <WarningsAsErrors>CA2007</WarningsAsErrors>
   </PropertyGroup>
 
 </Project>

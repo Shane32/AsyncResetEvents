@@ -72,7 +72,7 @@ public sealed class AsyncManualResetEvent
         async Task<bool> Wait()
         {
             var task = await Task.WhenAny(resetTask, Task.Delay(millisecondsTimeout, cancellationToken)).ConfigureAwait(false);
-            await task;
+            await task.ConfigureAwait(false);
             return resetTask == task;
         }
     }

@@ -92,6 +92,33 @@ public class AsyncMessagePumpTests
         Assert.Equal("1 FormatException 2 ", sb.ToString());
     }
 
+    [Fact]
+    public async Task DrainWorks_Pending()
+    {
+        var done = false;
+        var pump = new AsyncMessagePump<string>(async s => {
+            await Task.Delay(100);
+            done = true;
+        });
+        pump.Post("1");
+        var task = pump.DrainAsync();
+        Assert.False(task.IsCompleted);
+        Assert.False(done);
+        await task;
+        Assert.True(done);
+    }
+
+    [Fact]
+    public void DrainWorks_Synchronous()
+    {
+        var done = false;
+        var pump = new AsyncMessagePump<string>(async s => done = true);
+        pump.Post("1");
+        Assert.True(done);
+        var task = pump.DrainAsync();
+        Assert.True(task.IsCompleted);
+    }
+
     public class DerivedAsyncMessagePump : AsyncMessagePump<string>
     {
         private readonly StringBuilder _sb;
