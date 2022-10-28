@@ -92,6 +92,66 @@ public class AsyncMessagePumpTests
         Assert.Equal("1 FormatException 2 ", sb.ToString());
     }
 
+    [Fact]
+    public async Task DrainWorks_Pending()
+    {
+        var done = false;
+        var pending = true;
+        var pump = new AsyncMessagePump<string>(async s => {
+            pending = true;
+            await Task.Delay(100);
+            done = true;
+        });
+        pump.Post("1");
+        var task = pump.DrainAsync();
+        Assert.False(task.IsCompleted);
+        Assert.False(done);
+        Assert.True(pending);
+        await task;
+        Assert.True(done);
+    }
+
+    [Fact]
+    public async Task DrainWorks_Pending_2()
+    {
+        var done = 0;
+        var pending = 0;
+        var pump = new AsyncMessagePump<string>(async s => {
+            pending += 1;
+            await Task.Delay(100);
+            done += 1;
+        });
+
+        pump.Post("1");
+        var task1 = pump.DrainAsync();
+        Assert.False(task1.IsCompleted);
+        Assert.Equal(0, done);
+        Assert.Equal(1, pending);
+
+        pump.Post("2");
+        var task2 = pump.DrainAsync();
+        Assert.False(task2.IsCompleted);
+        Assert.Equal(task1, task2);
+        Assert.Equal(0, done);
+        Assert.Equal(1, pending);
+
+        await task1;
+        Assert.Equal(2, done);
+        await task2;
+        Assert.Equal(2, done);
+    }
+
+    [Fact]
+    public void DrainWorks_Synchronous()
+    {
+        var done = false;
+        var pump = new AsyncMessagePump<string>(async s => done = true);
+        pump.Post("1");
+        Assert.True(done);
+        var task = pump.DrainAsync();
+        Assert.True(task.IsCompleted);
+    }
+
     public class DerivedAsyncMessagePump : AsyncMessagePump<string>
     {
         private readonly StringBuilder _sb;
