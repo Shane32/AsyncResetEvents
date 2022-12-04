@@ -3,7 +3,8 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <LangVersion>10.0</LangVersion>
-    <NoWarn>1701;1702;1591;IDE1006;IDE0060;0618;CS1998</NoWarn>
+    <NoWarn>$(NoWarn);1701;1702;1591;IDE1006;IDE0060;0618;CS1998</NoWarn>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' != 'true'">
