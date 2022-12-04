@@ -3,11 +3,7 @@ namespace Shane32.AsyncResetEvents;
 /// <inheritdoc cref="ManualResetEvent"/>
 public sealed class AsyncManualResetEvent
 {
-#if NET5_0_OR_GREATER
-    private volatile TaskCompletionSource _taskCompletionSource = new();
-#else
     private volatile TaskCompletionSource<bool> _taskCompletionSource = new();
-#endif
 
     private static readonly Task<bool> _taskTrue = Task.FromResult(true);
     private static readonly Task<bool> _taskFalse = Task.FromResult(false);
@@ -60,16 +56,11 @@ public sealed class AsyncManualResetEvent
             return _taskCompletionSource.Task.IsCompleted ? _taskTrue : _taskFalse;
         }
         if (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled) {
-#if NET5_0_OR_GREATER
-            return _taskCompletionSource.Task.ContinueWith(_ => true, TaskContinuationOptions.ExecuteSynchronously);
-#else
             return _taskCompletionSource.Task;
-#endif
         }
-        var resetTask = _taskCompletionSource.Task;
-        return Wait();
+        return Wait(_taskCompletionSource.Task, millisecondsTimeout, cancellationToken);
 
-        async Task<bool> Wait()
+        static async Task<bool> Wait(Task<bool> resetTask, int millisecondsTimeout, CancellationToken cancellationToken)
         {
             var task = await Task.WhenAny(resetTask, Task.Delay(millisecondsTimeout, cancellationToken)).ConfigureAwait(false);
             await task.ConfigureAwait(false);
@@ -99,11 +90,7 @@ public sealed class AsyncManualResetEvent
             Task.Run(() => Set(false));
             return;
         }
-#if NET5_0_OR_GREATER
-        _taskCompletionSource.TrySetResult();
-#else
         _taskCompletionSource.TrySetResult(true);
-#endif
     }
 
     /// <summary>
@@ -115,11 +102,7 @@ public sealed class AsyncManualResetEvent
             var tcs = _taskCompletionSource;
             if (!tcs.Task.IsCompleted || Interlocked.CompareExchange(
                 ref _taskCompletionSource,
-#if NET5_0_OR_GREATER
-                new TaskCompletionSource(),
-#else
                 new TaskCompletionSource<bool>(),
-#endif
                 tcs) == tcs)
                 return;
         }

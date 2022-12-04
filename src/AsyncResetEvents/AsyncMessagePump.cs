@@ -19,8 +19,14 @@ namespace Shane32.AsyncResetEvents;
 /// </summary>
 public class AsyncMessagePump<T>
 {
+    private struct MessageTuple
+    {
+        public T? Value;
+        public Task<T>? Delegate;
+    }
+
     private readonly Func<T, Task> _callback;
-    private readonly Queue<Task<T>> _queue = new();
+    private readonly Queue<MessageTuple> _queue = new();
 #if NET5_0_OR_GREATER
     private TaskCompletionSource? _drainTask;
 #else
@@ -60,16 +66,22 @@ public class AsyncMessagePump<T>
     /// Posts the specified message to the message queue.
     /// </summary>
     public void Post(T message)
-        => Post(Task.FromResult(message));
+        => PostCore(new MessageTuple { Value = message });
 
     /// <summary>
     /// Posts the result of an asynchronous operation to the message queue.
     /// </summary>
     public void Post(Task<T> messageTask)
+        => PostCore(new MessageTuple { Delegate = messageTask });
+
+    /// <summary>
+    /// Posts the result of an asynchronous operation to the message queue.
+    /// </summary>
+    private void PostCore(MessageTuple messageTuple)
     {
         bool attach = false;
         lock (_queue) {
-            _queue.Enqueue(messageTask);
+            _queue.Enqueue(messageTuple);
             attach = _queue.Count == 1;
             if (attach) {
                 _drainTask = null;
@@ -87,15 +99,17 @@ public class AsyncMessagePump<T>
     private async void CompleteAsync()
     {
         // grab the message at the start of the queue, but don't remove it from the queue
-        Task<T> messageTask;
+        MessageTuple messageTuple;
         lock (_queue) {
             // should always successfully peek from the queue here
-            messageTask = _queue.Peek();
+            messageTuple = _queue.Peek();
         }
         while (true) {
             // process the message
             try {
-                var message = await messageTask.ConfigureAwait(false);
+                var message = messageTuple.Delegate != null
+                    ? await messageTuple.Delegate.ConfigureAwait(false)
+                    : messageTuple.Value!;
                 await _callback(message).ConfigureAwait(false);
             } catch (Exception ex) {
                 try {
@@ -106,11 +120,11 @@ public class AsyncMessagePump<T>
             // once the message has been passed along, dequeue it
             lock (_queue) {
                 var messageTask2 = _queue.Dequeue();
-                System.Diagnostics.Debug.Assert(messageTask == messageTask2);
+                System.Diagnostics.Debug.Assert(messageTuple.Equals(messageTask2));
                 // if the queue is empty, immedately quit the loop, as any new
                 // events queued will start CompleteAsync
 #if NETSTANDARD2_1 || NETCOREAPP2_0_OR_GREATER
-                if (!_queue.TryPeek(out messageTask!)) {
+                if (!_queue.TryPeek(out messageTuple!)) {
 #if NET5_0_OR_GREATER
                     _drainTask?.SetResult();
 #else
@@ -123,7 +137,7 @@ public class AsyncMessagePump<T>
                     _drainTask?.SetResult(true);
                     return;
                 }
-                messageTask = _queue.Peek();
+                messageTuple = _queue.Peek();
 #endif
             }
         }

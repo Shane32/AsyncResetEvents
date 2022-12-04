@@ -5,11 +5,7 @@ public sealed class AsyncAutoResetEvent
 {
     private static readonly Task<bool> _taskTrue = Task.FromResult(true);
     private static readonly Task<bool> _taskFalse = Task.FromResult(false);
-#if NET5_0_OR_GREATER
-    private readonly Queue<TaskCompletionSource> _taskCompletionSourceQueue = new();
-#else
     private readonly Queue<TaskCompletionSource<bool>> _taskCompletionSourceQueue = new();
-#endif
     private bool _signaled;
 
     /// <summary>
@@ -28,11 +24,7 @@ public sealed class AsyncAutoResetEvent
                 _signaled = false;
                 return _taskTrue;
             } else {
-#if NET5_0_OR_GREATER
-                var tcs = new TaskCompletionSource();
-#else
                 var tcs = new TaskCompletionSource<bool>();
-#endif
                 _taskCompletionSourceQueue.Enqueue(tcs);
                 return tcs.Task;
             }
@@ -53,11 +45,7 @@ public sealed class AsyncAutoResetEvent
         if (millisecondsTimeout < -1)
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
         cancellationToken.ThrowIfCancellationRequested();
-#if NET5_0_OR_GREATER
-        Task task;
-#else
         Task<bool> task;
-#endif
         lock (_taskCompletionSourceQueue) {
             if (_signaled) {
                 _signaled = false;
@@ -65,21 +53,13 @@ public sealed class AsyncAutoResetEvent
             } else if (millisecondsTimeout == 0) {
                 return _taskFalse;
             } else {
-#if NET5_0_OR_GREATER
-                var tcs = new TaskCompletionSource();
-#else
                 var tcs = new TaskCompletionSource<bool>();
-#endif
                 _taskCompletionSourceQueue.Enqueue(tcs);
                 task = tcs.Task;
             }
         }
         if (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled) {
-#if NET5_0_OR_GREATER
-            return task.ContinueWith(_ => true, TaskContinuationOptions.ExecuteSynchronously);
-#else
             return task;
-#endif
         }
         return Wait();
 
@@ -128,23 +108,13 @@ public sealed class AsyncAutoResetEvent
             Task.Run(() => Set(false));
             return;
         }
-#if NET5_0_OR_GREATER
-        TaskCompletionSource? toRelease = null;
-#else
         TaskCompletionSource<bool>? toRelease = null;
-#endif
         lock (_taskCompletionSourceQueue) {
             if (_taskCompletionSourceQueue.Count > 0)
                 toRelease = _taskCompletionSourceQueue.Dequeue();
             else if (!_signaled)
                 _signaled = true;
         }
-        if (toRelease != null) {
-#if NET5_0_OR_GREATER
-            toRelease.SetResult();
-#else
-            toRelease.SetResult(true);
-#endif
-        }
+        toRelease?.SetResult(true);
     }
 }
