@@ -44,7 +44,12 @@ public sealed class AsyncAutoResetEvent
     {
         if (millisecondsTimeout < -1)
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+#if NETSTANDARD1_0
         cancellationToken.ThrowIfCancellationRequested();
+#else
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<bool>(cancellationToken);
+#endif
         Task<bool> task;
         lock (_taskCompletionSourceQueue) {
             if (_signaled) {

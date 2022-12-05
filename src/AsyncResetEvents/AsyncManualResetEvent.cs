@@ -35,7 +35,11 @@ public sealed class AsyncManualResetEvent
         if (!cancellationToken.CanBeCanceled)
             return _taskCompletionSource.Task;
         cancellationToken.ThrowIfCancellationRequested();
+#if NET6_0_OR_GREATER
+        return _taskCompletionSource.Task.WaitAsync(cancellationToken);
+#else
         return Task.WhenAny(_taskCompletionSource.Task, Task.Delay(-1, cancellationToken)).Unwrap();
+#endif
     }
 
     /// <summary>
@@ -58,6 +62,11 @@ public sealed class AsyncManualResetEvent
         if (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled) {
             return _taskCompletionSource.Task;
         }
+#if NET6_0_OR_GREATER
+        if (millisecondsTimeout == -1) {
+            return _taskCompletionSource.Task.WaitAsync(cancellationToken);
+        }
+#endif
         return Wait(_taskCompletionSource.Task, millisecondsTimeout, cancellationToken);
 
         static async Task<bool> Wait(Task<bool> resetTask, int millisecondsTimeout, CancellationToken cancellationToken)
