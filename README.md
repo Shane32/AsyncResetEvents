@@ -50,7 +50,7 @@ execution order is maintained as of the point in time that `Post` was called, an
 the callback is never run on multiple threads at once.  If an asynchronous operation
 was posted and it throws an exception, or if the callback throws an exception, the exception
 is handled by the `HandleErrorAsync` protected method, which can be overridden by a user in
-a derived class.
+a derived class.  `DrainAsync` is provided to wait for pending messages to be processed.
 
 Constructors:
 
@@ -61,6 +61,7 @@ Public methods:
 
 - `void Post(T message)`
 - `void Post(Task<T> messageTask)`
+- `Task DrainAsync()`
 
 Protected methods:
 
@@ -81,6 +82,7 @@ Public methods:
 - `void Post(Task<Func<Task>> messageTask)` (inherited; not typically used)
 - `Task SendAsync(Func<Task> action)`
 - `Task<T> SendAsync<T>(Func<Task<T>> action)`
+- `Task DrainAsync()`
 
 Protected methods:
 
