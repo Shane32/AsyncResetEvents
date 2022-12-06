@@ -4,13 +4,13 @@ internal static class TaskExtensions
 {
     private static readonly Task<bool> _falseTask = Task.FromResult(false);
 
-    public static Task<bool> WaitOrFalseAsync(this Task<bool> task, int millisecondsDelay, CancellationToken cancellationToken)
+    public static Task<bool> WaitOrFalseAsync(this Task<bool> task, int millisecondsTimeout, CancellationToken cancellationToken)
     {
-        if (millisecondsDelay < -1)
-            throw new ArgumentOutOfRangeException(nameof(millisecondsDelay));
-        if (task.IsCompleted || (millisecondsDelay == -1 && !cancellationToken.CanBeCanceled))
+        if (millisecondsTimeout < -1)
+            throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+        if (task.IsCompleted || (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled))
             return task;
-        if (millisecondsDelay == 0)
+        if (millisecondsTimeout == 0)
             return _falseTask;
 #if NETSTANDARD1_0
         cancellationToken.ThrowIfCancellationRequested();
@@ -18,7 +18,13 @@ internal static class TaskExtensions
         if (cancellationToken.IsCancellationRequested)
             return Task.FromCanceled<bool>(cancellationToken);
 #endif
-        return TimeoutAfter(task, millisecondsDelay, cancellationToken);
+
+#if NET6_0_OR_GREATER
+        if (millisecondsTimeout == -1)
+            return task.WaitAsync(cancellationToken);
+#endif
+
+        return TimeoutAfter(task, millisecondsTimeout, cancellationToken);
 
         static async Task<bool> TimeoutAfter(Task<bool> task, int millisecondsDelay, CancellationToken cancellationToken)
         {

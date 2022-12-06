@@ -5,9 +5,6 @@ public sealed class AsyncManualResetEvent
 {
     private volatile TaskCompletionSource<bool> _taskCompletionSource = new();
 
-    private static readonly Task<bool> _taskTrue = Task.FromResult(true);
-    private static readonly Task<bool> _taskFalse = Task.FromResult(false);
-
     /// <summary>
     /// Initializes a new unsignaled instance.
     /// </summary>
@@ -31,16 +28,7 @@ public sealed class AsyncManualResetEvent
     /// <exception cref="OperationCanceledException">The provided <paramref name="cancellationToken"/> was signaled.</exception>
     /// <exception cref="ObjectDisposedException">The provided <paramref name="cancellationToken"/> has already been disposed.</exception>
     public Task WaitAsync(CancellationToken cancellationToken = default)
-    {
-        if (!cancellationToken.CanBeCanceled)
-            return _taskCompletionSource.Task;
-        cancellationToken.ThrowIfCancellationRequested();
-#if NET6_0_OR_GREATER
-        return _taskCompletionSource.Task.WaitAsync(cancellationToken);
-#else
-        return Task.WhenAny(_taskCompletionSource.Task, Task.Delay(-1, cancellationToken)).Unwrap();
-#endif
-    }
+        => _taskCompletionSource.Task.WaitOrFalseAsync(-1, cancellationToken);
 
     /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.
@@ -52,30 +40,7 @@ public sealed class AsyncManualResetEvent
     /// <exception cref="OperationCanceledException">The provided <paramref name="cancellationToken"/> was signaled.</exception>
     /// <exception cref="ObjectDisposedException">The provided <paramref name="cancellationToken"/> has already been disposed.</exception>
     public Task<bool> WaitAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
-    {
-        if (millisecondsTimeout < -1)
-            throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
-        cancellationToken.ThrowIfCancellationRequested();
-        if (millisecondsTimeout == 0) {
-            return _taskCompletionSource.Task.IsCompleted ? _taskTrue : _taskFalse;
-        }
-        if (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled) {
-            return _taskCompletionSource.Task;
-        }
-#if NET6_0_OR_GREATER
-        if (millisecondsTimeout == -1) {
-            return _taskCompletionSource.Task.WaitAsync(cancellationToken);
-        }
-#endif
-        return Wait(_taskCompletionSource.Task, millisecondsTimeout, cancellationToken);
-
-        static async Task<bool> Wait(Task<bool> resetTask, int millisecondsTimeout, CancellationToken cancellationToken)
-        {
-            var task = await Task.WhenAny(resetTask, Task.Delay(millisecondsTimeout, cancellationToken)).ConfigureAwait(false);
-            await task.ConfigureAwait(false);
-            return resetTask == task;
-        }
-    }
+        => _taskCompletionSource.Task.WaitOrFalseAsync(millisecondsTimeout, cancellationToken);
 
     /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.
