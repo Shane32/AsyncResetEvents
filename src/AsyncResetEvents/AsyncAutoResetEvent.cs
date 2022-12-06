@@ -66,16 +66,18 @@ public sealed class AsyncAutoResetEvent
         if (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled) {
             return task;
         }
+
+#if NETSTANDARD1_0
         return Wait();
 
+        // has memory leak if cancellation token is never canceled or disposed
         async Task<bool> Wait()
         {
             Task completionTask;
             try {
                 completionTask = await Task.WhenAny(task, Task.Delay(millisecondsTimeout, cancellationToken)).ConfigureAwait(false);
                 await completionTask.ConfigureAwait(false);
-            }
-            catch {
+            } catch {
                 // when the queued task completion source completes, immediately trigger the next queued task,
                 // since there is no practical way (currently) to remove the task completion source from the queue
                 _ = task.ContinueWith(_ => Set(), TaskContinuationOptions.ExecuteSynchronously);
@@ -89,7 +91,33 @@ public sealed class AsyncAutoResetEvent
             }
             return true;
         }
+#else
+        var t = task.WaitOrFalseAsync(millisecondsTimeout, cancellationToken);
+        
+        _ = t.ContinueWith(
+            static (task1, state) => {
+                var state2 = (MyStruct)state!;
+                if (task1.IsCanceled || task1.IsFaulted || task1.Result == false) {
+                    state2.Task.ContinueWith(
+                        static (task2, state) => ((AsyncAutoResetEvent)state!).Set(),
+                        state2.AsyncAutoResetEvent,
+                        TaskContinuationOptions.ExecuteSynchronously);
+                }
+            },
+            new MyStruct { Task = task, AsyncAutoResetEvent = this },
+            CancellationToken.None);
+
+        return t;
+#endif
     }
+
+#if !NETSTANDARD1_0
+    private struct MyStruct
+    {
+        public Task Task;
+        public AsyncAutoResetEvent AsyncAutoResetEvent;
+    }
+#endif
 
     /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.

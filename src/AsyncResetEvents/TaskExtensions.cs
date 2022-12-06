@@ -1,5 +1,6 @@
 namespace Shane32.AsyncResetEvents;
 
+#if !NETSTANDARD1_0
 internal static class TaskExtensions
 {
     private static readonly Task<bool> _falseTask = Task.FromResult(false);
@@ -18,67 +19,120 @@ internal static class TaskExtensions
         if (cancellationToken.IsCancellationRequested)
             return Task.FromCanceled<bool>(cancellationToken);
 #endif
-        if (millisecondsDelay > 0) {
-            var timer = new System.Threading.Timer(
-                callback: static state => {
-                    //timer.DisposeAsync //3.0+
-                    timer.Dispose();
-                },
-                state: null,
-                dueTime: millisecondsDelay,
-                period: Timeout.Infinite);
-        }
-        // todo: wire up timer
-        // todo: wire up cancellation token
-        return null!;
+        return WaitProxy.Initialize(task, millisecondsDelay, cancellationToken);
     }
 
-    private class WaitProxy
+    private class WaitProxy : IDisposable
     {
         private Timer? _timer;
         private CancellationTokenRegistration _ctsRegistration;
+        private readonly TaskCompletionSource<bool> _tcs = new();
 
         private WaitProxy() { }
 
-        public static Task Initialize(Task task, int millisecondsDelay, CancellationToken cancellationToken)
+        // used by WaitOrFalseAsync
+        public static Task<bool> Initialize(Task<bool> task, int millisecondsDelay, CancellationToken cancellationToken)
         {
             var instance = new WaitProxy();
-            var newTask = task.ContinueWith<bool>(
-                static (completedTask, state) => {
-                    ((WaitProxy)state).Dispose();
-                    return true;
-                },
-                instance,
-                TaskContinuationOptions.ExecuteSynchronously);
 
+            // if the source task finishes, pass the result to the resulting task
+            task.ContinueWith(static (task1, state) => {
+                var proxy = (WaitProxy)state!;
+                if (task1.IsCanceled)
+                    proxy._tcs.TrySetCanceled();
+                else if (task1.IsFaulted)
+                    proxy._tcs.TrySetException(task1.Exception!.InnerExceptions);
+                else
+                    proxy._tcs.TrySetResult(task1.Result);
+            }, instance, CancellationToken.None);
+
+            // register the timer
             if (millisecondsDelay > 0) {
                 instance._timer = new Timer(
                     static state => {
-
+                        var proxy = (WaitProxy)state!;
+                        proxy._tcs.TrySetResult(false);
                     },
                     instance,
                     millisecondsDelay,
                     Timeout.Infinite);
             }
+
+            // register the cancellation token
             if (cancellationToken.CanBeCanceled) {
                 instance._ctsRegistration = cancellationToken.Register(
                     static state => {
-                        ((WaitProxy)state).Dispose();
-                        newTask.c
-                    },
-                    instance);
+                        var proxy = (WaitProxy)state!;
+                        proxy._tcs.TrySetCanceled();
+                    }, instance);
             }
-            _task = task;
-            _timer = timer;
-            _cts = cts;
+
+            // when the resulting task finishes, dispose of the timer and cancellation token registration
+            instance._tcs.Task.ContinueWith(static (_, state) => {
+                var proxy = (WaitProxy)state!;
+                proxy.Dispose();
+            }, instance, CancellationToken.None);
+
+            return instance._tcs.Task;
         }
 
-        private void Dispose()
+        public void Dispose()
         {
-            // stop timer
+            // stop/unregister timer
             _timer?.Dispose();
             // unregister cancellation
             _ctsRegistration.Dispose();
         }
     }
+
+    /*
+    private class WaitProxy2 : IDisposable
+    {
+        private readonly CancellationTokenSource _cts;
+        private readonly TaskCompletionSource<bool> _tcs = new();
+
+        private WaitProxy2(CancellationToken cancellationToken)
+        {
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        }
+
+        // used by WaitOrFalseAsync
+        public static Task<bool> Initialize(Task<bool> task, int millisecondsDelay, CancellationToken cancellationToken)
+        {
+            var instance = new WaitProxy2(cancellationToken);
+
+            // if the source task finishes, pass the result to the resulting task
+            task.ContinueWith(static (task1, state) => {
+                var proxy = (WaitProxy2)state!;
+                if (task1.IsCanceled)
+                    proxy._tcs.TrySetCanceled();
+                else if (task1.IsFaulted)
+                    proxy._tcs.TrySetException(task1.Exception!.InnerExceptions);
+                else
+                    proxy._tcs.TrySetResult(task1.Result);
+            }, instance, CancellationToken.None);
+
+            // register the timer
+            var tDelay = Task.Delay(millisecondsDelay, instance._cts.Token);
+            tDelay.ContinueWith(static (task1, state) => {
+                var proxy = (WaitProxy2)state!;
+                proxy._tcs.TrySetResult(false);
+            }, instance, CancellationToken.None);
+
+            // when the resulting task finishes, dispose of the timer and cancellation token registration
+            instance._tcs.Task.ContinueWith(static (_, state) => {
+                var proxy = (WaitProxy2)state!;
+                proxy.Dispose();
+            }, instance, CancellationToken.None);
+
+            return Task.WhenAny(instance._tcs.Task, tDelay.ContinueWith(_ => false, TaskContinuationOptions.OnlyOnRanToCompletion)).Unwrap();
+        }
+
+        public void Dispose()
+        {
+            _cts.Cancel();
+        }
+    }
+    */
 }
+#endif
