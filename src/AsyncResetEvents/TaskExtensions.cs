@@ -19,7 +19,30 @@ internal static class TaskExtensions
         if (cancellationToken.IsCancellationRequested)
             return Task.FromCanceled<bool>(cancellationToken);
 #endif
-        return WaitProxy.Initialize(task, millisecondsDelay, cancellationToken);
+        return TimeoutAfter(task, millisecondsDelay, cancellationToken);
+
+        static async Task<bool> TimeoutAfter(Task<bool> task, int millisecondsDelay, CancellationToken cancellationToken)
+        {
+#if NET6_0_OR_GREATER
+            try {
+                return await task.WaitAsync(TimeSpan.FromMilliseconds(millisecondsDelay), cancellationToken).ConfigureAwait(false);
+            } catch (TimeoutException) {
+                return false;
+            }
+#else
+            using (var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+
+                var completedTask = await Task.WhenAny(task, Task.Delay(millisecondsDelay, timeoutCancellationTokenSource.Token)).ConfigureAwait(false);
+                if (completedTask == task) {
+                    timeoutCancellationTokenSource.Cancel();
+                    return await task.ConfigureAwait(false);  // Very important in order to propagate exceptions
+                } else {
+                    timeoutCancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    return false;
+                }
+            }
+#endif
+        }
     }
 
     private class WaitProxy : IDisposable
