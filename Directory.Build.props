@@ -19,6 +19,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>true</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IDE0053</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

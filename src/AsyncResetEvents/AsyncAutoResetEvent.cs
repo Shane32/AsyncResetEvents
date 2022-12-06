@@ -15,21 +15,7 @@ public sealed class AsyncAutoResetEvent
     /// <exception cref="OperationCanceledException">The provided <paramref name="cancellationToken"/> was signaled.</exception>
     /// <exception cref="ObjectDisposedException">The provided <paramref name="cancellationToken"/> has already been disposed.</exception>
     public Task WaitAsync(CancellationToken cancellationToken = default)
-    {
-        if (cancellationToken.CanBeCanceled) {
-            return WaitAsync(-1, cancellationToken);
-        }
-        lock (_taskCompletionSourceQueue) {
-            if (_signaled) {
-                _signaled = false;
-                return _taskTrue;
-            } else {
-                var tcs = new TaskCompletionSource<bool>();
-                _taskCompletionSourceQueue.Enqueue(tcs);
-                return tcs.Task;
-            }
-        }
-    }
+        => WaitAsync(-1, cancellationToken);
 
     /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.
@@ -44,7 +30,12 @@ public sealed class AsyncAutoResetEvent
     {
         if (millisecondsTimeout < -1)
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+#if NETSTANDARD1_0
         cancellationToken.ThrowIfCancellationRequested();
+#else
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromCanceled<bool>(cancellationToken);
+#endif
         Task<bool> task;
         lock (_taskCompletionSourceQueue) {
             if (_signaled) {
@@ -58,32 +49,33 @@ public sealed class AsyncAutoResetEvent
                 task = tcs.Task;
             }
         }
+
         if (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled) {
             return task;
         }
-        return Wait();
 
-        async Task<bool> Wait()
-        {
-            Task completionTask;
-            try {
-                completionTask = await Task.WhenAny(task, Task.Delay(millisecondsTimeout, cancellationToken)).ConfigureAwait(false);
-                await completionTask.ConfigureAwait(false);
-            }
-            catch {
-                // when the queued task completion source completes, immediately trigger the next queued task,
-                // since there is no practical way (currently) to remove the task completion source from the queue
-                _ = task.ContinueWith(_ => Set(), TaskContinuationOptions.ExecuteSynchronously);
-                throw;
-            }
-            if (completionTask != task) {
-                // when the queued task completion source completes, immediately trigger the next queued task,
-                // since there is no practical way (currently) to remove the task completion source from the queue
-                _ = task.ContinueWith(_ => Set(), TaskContinuationOptions.ExecuteSynchronously);
-                return false;
-            }
-            return true;
-        }
+        var t = task.WaitOrFalseAsync(millisecondsTimeout, cancellationToken);
+        
+        _ = t.ContinueWith(
+            static (task1, state) => {
+                var state2 = (MyStruct)state!;
+                if (task1.IsCanceled || task1.IsFaulted || task1.Result == false) {
+                    state2.Task.ContinueWith(
+                        static (task2, state) => ((AsyncAutoResetEvent)state!).Set(),
+                        state2.AsyncAutoResetEvent,
+                        TaskContinuationOptions.ExecuteSynchronously);
+                }
+            },
+            new MyStruct { Task = task, AsyncAutoResetEvent = this },
+            CancellationToken.None);
+
+        return t;
+    }
+
+    private struct MyStruct
+    {
+        public Task Task;
+        public AsyncAutoResetEvent AsyncAutoResetEvent;
     }
 
     /// <summary>
