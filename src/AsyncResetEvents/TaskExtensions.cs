@@ -36,7 +36,6 @@ internal static class TaskExtensions
             }
 #else
             using (var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
-
                 var completedTask = await Task.WhenAny(task, Task.Delay(millisecondsDelay, timeoutCancellationTokenSource.Token)).ConfigureAwait(false);
                 if (completedTask == task) {
                     timeoutCancellationTokenSource.Cancel();
