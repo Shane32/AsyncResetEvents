@@ -14,6 +14,7 @@ public class MemoryTests
             are.Set();
             await task;
         }
+        await Task.Yield();
         var maxMem = GC.GetTotalMemory(true);
         Assert.InRange(maxMem, 0, mem * 2);
     }
@@ -28,6 +29,7 @@ public class MemoryTests
             are.Set();
             await task;
         }
+        await Task.Yield();
         var maxMem = GC.GetTotalMemory(true);
         Assert.InRange(maxMem, 0, mem * 2);
     }
@@ -44,6 +46,7 @@ public class MemoryTests
             are.Set();
             await task;
         }
+        await Task.Yield();
         var maxMem = GC.GetTotalMemory(true);
         Assert.InRange(maxMem, 0, mem * 2);
     }
@@ -60,6 +63,7 @@ public class MemoryTests
             are.Set();
             await task;
         }
+        await Task.Yield();
         var maxMem = GC.GetTotalMemory(true);
         Assert.InRange(maxMem, 0, mem * 2);
     }
