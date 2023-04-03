@@ -95,11 +95,12 @@ public class AsyncMessagePumpTests
     [Fact]
     public async Task DrainWorks_Pending()
     {
+        var reset = new AsyncManualResetEvent();
         var done = false;
         var pending = true;
         var pump = new AsyncMessagePump<string>(async s => {
             pending = true;
-            await Task.Delay(100);
+            await reset.WaitAsync();
             done = true;
         });
         pump.Post("1");
@@ -107,6 +108,7 @@ public class AsyncMessagePumpTests
         Assert.False(task.IsCompleted);
         Assert.False(done);
         Assert.True(pending);
+        reset.Set(true);
         await task;
         Assert.True(done);
     }
@@ -114,11 +116,12 @@ public class AsyncMessagePumpTests
     [Fact]
     public async Task DrainWorks_Pending_2()
     {
+        var reset = new AsyncManualResetEvent();
         var done = 0;
         var pending = 0;
         var pump = new AsyncMessagePump<string>(async s => {
             pending += 1;
-            await Task.Delay(100);
+            await reset.WaitAsync();
             done += 1;
         });
 
@@ -135,6 +138,7 @@ public class AsyncMessagePumpTests
         Assert.Equal(0, done);
         Assert.Equal(1, pending);
 
+        reset.Set(true);
         await task1;
         Assert.Equal(2, done);
         await task2;
