@@ -94,6 +94,19 @@ public class AsyncMessagePump<T>
     }
 
     /// <summary>
+    /// Returns the number of messages waiting in the queue.
+    /// Includes the message currently being processed, if any.
+    /// </summary>
+    public int Count
+    {
+        get {
+            lock (_queue) {
+                return _queue.Count;
+            }
+        }
+    }
+
+    /// <summary>
     /// Processes message in the queue until it is empty.
     /// </summary>
     private async void CompleteAsync()
