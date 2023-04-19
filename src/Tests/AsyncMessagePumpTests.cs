@@ -93,6 +93,29 @@ public class AsyncMessagePumpTests
     }
 
     [Fact]
+    public async Task CountWorks()
+    {
+        var tcs = new AsyncManualResetEvent[4];
+        tcs[0] = new();
+        tcs[1] = new();
+        tcs[2] = new();
+        tcs[3] = new();
+        var pump = new AsyncMessagePump<int>(async i => {
+            await tcs[i].WaitAsync().ConfigureAwait(false);
+            tcs[i + 2].Set();
+        });
+        pump.Post(0);
+        Assert.Equal(1, pump.Count);
+        pump.Post(1);
+        Assert.Equal(2, pump.Count);
+        tcs[0].Set();
+        Assert.True(await tcs[2].WaitAsync(30000, default).ConfigureAwait(false));
+        tcs[1].Set();
+        Assert.True(await tcs[3].WaitAsync(30000, default).ConfigureAwait(false));
+        Assert.InRange(pump.Count, 0, 1); // probably 1, due to synchronous execution of tcs[i + 2].Set()
+    }
+
+    [Fact]
     public async Task DrainWorks_Pending()
     {
         var reset = new AsyncManualResetEvent();

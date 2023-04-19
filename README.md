@@ -63,6 +63,10 @@ Public methods:
 - `void Post(Task<T> messageTask)`
 - `Task DrainAsync()`
 
+Public properties:
+
+- `int Count { get; }`
+
 Protected methods:
 
 - `Task HandleErrorAsync(Exception exception)`
@@ -83,6 +87,10 @@ Public methods:
 - `Task SendAsync(Func<Task> action)`
 - `Task<T> SendAsync<T>(Func<Task<T>> action)`
 - `Task DrainAsync()`
+
+Public properties:
+
+- `int Count { get; }`
 
 Protected methods:
 
