@@ -95,3 +95,8 @@ Public properties:
 Protected methods:
 
 - `Task HandleErrorAsync(Exception exception)` (not needed when `SendAsync` is used)
+
+## Credits
+
+Glory to Jehovah, Lord of Lords and King of Kings, creator of Heaven and Earth, who through his Son Jesus Christ,
+has reedemed me to become a child of God. -Shane32
