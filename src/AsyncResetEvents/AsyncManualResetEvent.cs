@@ -28,7 +28,7 @@ public sealed class AsyncManualResetEvent
     /// <exception cref="OperationCanceledException">The provided <paramref name="cancellationToken"/> was signaled.</exception>
     /// <exception cref="ObjectDisposedException">The provided <paramref name="cancellationToken"/> has already been disposed.</exception>
     public Task WaitAsync(CancellationToken cancellationToken = default)
-        => _taskCompletionSource.Task.WaitOrFalseAsync(-1, cancellationToken);
+        => WaitAsync(-1, cancellationToken);
 
     /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.
@@ -61,7 +61,13 @@ public sealed class AsyncManualResetEvent
     public void Set(bool backgroundThread = false)
     {
         if (backgroundThread) {
-            Task.Run(() => Set(false));
+            // Task.Run with state
+            _ = Task.Factory.StartNew(
+                static mre => ((AsyncManualResetEvent)mre!).Set(false),
+                this,
+                default,
+                TaskCreationOptions.DenyChildAttach,
+                TaskScheduler.Default);
             return;
         }
         _taskCompletionSource.TrySetResult(true);
@@ -72,6 +78,8 @@ public sealed class AsyncManualResetEvent
     /// </summary>
     public void Reset()
     {
+        // if the task is completed (aka if the event needs to be reset),
+        // swaps the signaled task completion source with a new instance
         while (true) {
             var tcs = _taskCompletionSource;
             if (!tcs.Task.IsCompleted || Interlocked.CompareExchange(
