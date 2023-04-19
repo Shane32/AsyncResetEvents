@@ -109,10 +109,10 @@ public class AsyncMessagePumpTests
         pump.Post(1);
         Assert.Equal(2, pump.Count);
         tcs[0].SetResult(true);
-        Assert.True(await tcs[2].Task.WaitOrFalseAsync(30000, default));
+        Assert.True(await tcs[2].Task.WaitOrFalseAsync(30000, default).ConfigureAwait(false));
         Assert.Equal(1, pump.Count);
         tcs[1].SetResult(true);
-        Assert.True(await tcs[3].Task.WaitOrFalseAsync(30000, default));
+        Assert.True(await tcs[3].Task.WaitOrFalseAsync(30000, default).ConfigureAwait(false));
         Assert.Equal(0, pump.Count);
     }
 
