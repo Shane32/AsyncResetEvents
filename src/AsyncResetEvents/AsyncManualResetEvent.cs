@@ -80,12 +80,13 @@ public sealed class AsyncManualResetEvent
     {
         // if the task is completed (aka if the event needs to be reset),
         // swaps the signaled task completion source with a new instance
+        TaskCompletionSource<bool>? newTcs = null;
         while (true) {
             var tcs = _taskCompletionSource;
-            if (!tcs.Task.IsCompleted || Interlocked.CompareExchange(
-                ref _taskCompletionSource,
-                new TaskCompletionSource<bool>(),
-                tcs) == tcs)
+            if (!tcs.Task.IsCompleted)
+                return;
+            newTcs ??= new TaskCompletionSource<bool>();
+            if (Interlocked.CompareExchange(ref _taskCompletionSource, newTcs, tcs) == tcs)
                 return;
         }
     }
