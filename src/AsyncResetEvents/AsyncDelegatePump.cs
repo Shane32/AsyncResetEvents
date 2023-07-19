@@ -4,12 +4,12 @@ namespace Shane32.AsyncResetEvents;
 /// An asynchronous delegate pump, where queued asynchronous delegates are
 /// executed in order.
 /// </summary>
-public class AsyncDelegatePump : AsyncMessagePump<Func<Task>>
+public class AsyncDelegatePump : AsyncMessagePump<IDelegateTuple>
 {
     /// <summary>
     /// Initializes a new instance.
     /// </summary>
-    public AsyncDelegatePump() : base(d => d())
+    public AsyncDelegatePump() : base(static info => info.ExecuteAsync())
     {
     }
 
@@ -17,61 +17,63 @@ public class AsyncDelegatePump : AsyncMessagePump<Func<Task>>
     /// Executes a delegate in order and returns its result.
     /// </summary>
     public Task SendAsync(Func<Task> action)
-    {
-#if NET5_0_OR_GREATER
-        var tcs = new TaskCompletionSource();
-#else
-        var tcs = new TaskCompletionSource<byte>();
-#endif
-        Post(() => {
-            Task task;
-            try {
-                task = action();
-            } catch (Exception ex) {
-                tcs.SetException(ex);
-                throw;
-            }
-            task.ContinueWith(task2 => {
-                if (task2.IsFaulted)
-                    tcs.SetException(task2.Exception!.GetBaseException());
-                else if (task2.IsCanceled)
-                    tcs.SetCanceled();
-                else
-#if NET5_0_OR_GREATER
-                    tcs.SetResult();
-#else
-                    tcs.SetResult(0);
-#endif
-            }, TaskContinuationOptions.ExecuteSynchronously);
-            return task;
-        });
-        return tcs.Task;
-    }
+        => SendAsync(action, Timeout.InfiniteTimeSpan, default);
 
     /// <summary>
     /// Executes a delegate in order and returns its result.
+    /// If the cancellation token is signaled before the delegate
+    /// starts executing, the delegate will not be started, and the
+    /// task will be canceled.
     /// </summary>
-    public Task<T> SendAsync<T>(Func<Task<T>> action)
+    public Task SendAsync(Func<Task> action, CancellationToken cancellationToken)
+        => SendAsync(action, Timeout.InfiniteTimeSpan, cancellationToken);
+
+    /// <summary>
+    /// Executes a delegate in order and returns its result.
+    /// If the cancellation token is signaled before the delegate
+    /// starts executing, the delegate will not be started, and the
+    /// task will be canceled.  If the timeout is reached before the
+    /// delegate starts executing, the delegate will not be started,
+    /// and the task will throw <see cref="TimeoutException"/>.
+    /// </summary>
+    public Task SendAsync(Func<Task> action, TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        var tcs = new TaskCompletionSource<T>();
-        Post(() => {
-            Task<T> task;
-            try {
-                task = action();
-            } catch (Exception ex) {
-                tcs.SetException(ex);
-                throw;
-            }
-            task.ContinueWith(task2 => {
-                if (task2.IsFaulted)
-                    tcs.SetException(task2.Exception!.GetBaseException());
-                else if (task2.IsCanceled)
-                    tcs.SetCanceled();
-                else
-                    tcs.SetResult(task2.Result);
-            }, TaskContinuationOptions.ExecuteSynchronously);
-            return task;
-        });
-        return tcs.Task;
+        cancellationToken.ThrowIfCancellationRequested();
+        var info = new DelegateTuple(action, timeout, cancellationToken);
+        Post(info);
+        return info.Task;
+    }
+
+    /// <inheritdoc cref="SendAsync(Func{Task})"/>
+    public Task<T> SendAsync<T>(Func<Task<T>> action)
+        => SendAsync(action, Timeout.InfiniteTimeSpan, default);
+
+    /// <inheritdoc cref="SendAsync(Func{Task}, CancellationToken)"/>
+    public Task<T> SendAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+        => SendAsync(action, Timeout.InfiniteTimeSpan, cancellationToken);
+
+    /// <inheritdoc cref="SendAsync(Func{Task}, TimeSpan, CancellationToken)"/>
+    public Task<T> SendAsync<T>(Func<Task<T>> action, TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var info = new DelegateTuple<T>(action, timeout, cancellationToken);
+        Post(info);
+        return info.Task;
+    }
+
+    /// <inheritdoc cref="AsyncMessagePump{T}.Post(T)"/>
+    public void Post(Func<Task> action)
+    {
+        Post(new SimpleTuple(action));
+    }
+
+    private class SimpleTuple : IDelegateTuple
+    {
+        private readonly Func<Task> _action;
+        public SimpleTuple(Func<Task> action)
+        {
+            _action = action;
+        }
+        public Task ExecuteAsync() => _action();
     }
 }

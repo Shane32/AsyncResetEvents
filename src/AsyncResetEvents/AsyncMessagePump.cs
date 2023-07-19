@@ -123,7 +123,9 @@ public class AsyncMessagePump<T>
                 var message = messageTuple.Delegate != null
                     ? await messageTuple.Delegate.ConfigureAwait(false)
                     : messageTuple.Value!;
-                await _callback(message).ConfigureAwait(false);
+                var callbackTask = _callback(message);
+                if (callbackTask != null)
+                    await callbackTask.ConfigureAwait(false);
             } catch (Exception ex) {
                 try {
                     await HandleErrorAsync(ex).ConfigureAwait(false);

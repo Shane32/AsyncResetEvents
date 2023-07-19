@@ -147,4 +147,100 @@ public class AsyncDelegatePumpTests
         await task1;
         await Assert.ThrowsAnyAsync<ApplicationException>(() => task2);
     }
+
+    [Fact]
+    public async Task CancelsBeforeStarts()
+    {
+        var tcs1 = new TaskCompletionSource<bool>();
+        var task1 = _pump.SendAsync(() => (Task)tcs1.Task);
+        var cts = new CancellationTokenSource();
+        var task2 = _pump.SendAsync(async () => throw new ApplicationException("test"), cts.Token);
+        Assert.False(task2.IsCompleted);
+        cts.Cancel();
+        Assert.True(task2.IsCompleted);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task2);
+        Assert.False(task1.IsCompleted);
+        tcs1.SetResult(true);
+        await task1;
+    }
+
+    [Fact]
+    public async Task CancelsBeforeStarts_Typed()
+    {
+        var tcs1 = new TaskCompletionSource<bool>();
+        var task1 = _pump.SendAsync(() => (Task)tcs1.Task);
+        var cts = new CancellationTokenSource();
+        var task2 = _pump.SendAsync<bool>(async () => throw new ApplicationException("test"), cts.Token);
+        Assert.False(task2.IsCompleted);
+        cts.Cancel();
+        Assert.True(task2.IsCompleted);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task2);
+        Assert.False(task1.IsCompleted);
+        tcs1.SetResult(true);
+        await task1;
+    }
+
+    [Fact]
+    public async Task TimeoutBeforeStarts()
+    {
+        var tcs1 = new TaskCompletionSource<bool>();
+        var task1 = _pump.SendAsync(() => tcs1.Task);
+        var task2 = _pump.SendAsync(async () => throw new ApplicationException("test"), TimeSpan.FromMilliseconds(100));
+        Assert.False(task2.IsCompleted);
+        await Task.Delay(5000);
+        Assert.True(task2.IsCompleted);
+        await Assert.ThrowsAnyAsync<TimeoutException>(() => task2);
+        Assert.False(task1.IsCompleted);
+        tcs1.SetResult(true);
+        await task1;
+    }
+
+    [Fact]
+    public async Task TimeoutBeforeStarts_Typed()
+    {
+        var tcs1 = new TaskCompletionSource<bool>();
+        var task1 = _pump.SendAsync(() => (Task)tcs1.Task);
+        var task2 = _pump.SendAsync<bool>(async () => throw new ApplicationException("test"), TimeSpan.FromMilliseconds(100));
+        Assert.False(task2.IsCompleted);
+        await Task.Delay(5000);
+        Assert.True(task2.IsCompleted);
+        await Assert.ThrowsAnyAsync<TimeoutException>(() => task2);
+        Assert.False(task1.IsCompleted);
+        tcs1.SetResult(true);
+        await task1;
+    }
+
+    [Fact]
+    public async Task WithTimeoutAndCancellation()
+    {
+        var tcs1 = new TaskCompletionSource<bool>();
+        var task1 = _pump.SendAsync(() => (Task)tcs1.Task);
+        var tcs2 = new TaskCompletionSource<bool>();
+        var cts = new CancellationTokenSource();
+        var task2 = _pump.SendAsync(() => (Task)tcs2.Task, TimeSpan.FromMilliseconds(5000), cts.Token);
+        Assert.False(task2.IsCompleted);
+        Assert.False(task1.IsCompleted);
+        tcs1.SetResult(true);
+        await task1;
+        Assert.False(task2.IsCompleted);
+        tcs2.SetResult(true);
+        await task2;
+    }
+
+    [Fact]
+    public async Task WithTimeoutAndCancellation_Typed()
+    {
+        var tcs1 = new TaskCompletionSource<bool>();
+        var task1 = _pump.SendAsync(() => (Task)tcs1.Task);
+        var tcs2 = new TaskCompletionSource<bool>();
+        var cts = new CancellationTokenSource();
+        var task2 = _pump.SendAsync(() => tcs2.Task, TimeSpan.FromMilliseconds(5000), cts.Token);
+        Assert.False(task2.IsCompleted);
+        Assert.False(task1.IsCompleted);
+        tcs1.SetResult(true);
+        await task1;
+        Assert.False(task2.IsCompleted);
+        tcs2.SetResult(true);
+        Assert.True(await task2);
+    }
 }
