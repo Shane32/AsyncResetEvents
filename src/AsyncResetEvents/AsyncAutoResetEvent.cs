@@ -127,6 +127,7 @@ public sealed class AsyncAutoResetEvent
 #endif
     }
 
+#if !NET6_0_OR_GREATER
     private sealed class TaskContinuationState
     {
         public Task Task { get; }
@@ -138,6 +139,7 @@ public sealed class AsyncAutoResetEvent
             AsyncAutoResetEvent = asyncAutoResetEvent;
         }
     }
+#endif
 
     /// <summary>
     /// Returns a task that will complete when the reset event has been signaled.
