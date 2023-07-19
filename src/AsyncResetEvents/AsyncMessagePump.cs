@@ -33,10 +33,6 @@ public class AsyncMessagePump<T>
     private TaskCompletionSource<bool>? _drainTask;
 #endif
 
-#if NETSTANDARD1_0
-    private static readonly Task _completedTask = Task.FromResult<byte>(0);
-#endif
-
     /// <summary>
     /// Initializes a new instances with the specified asynchronous callback delegate.
     /// </summary>
@@ -55,7 +51,7 @@ public class AsyncMessagePump<T>
         _callback = message => {
             callback(message);
 #if NETSTANDARD1_0
-            return _completedTask;
+            return DelegateTuple.CompletedTask;
 #else
             return Task.CompletedTask;
 #endif
@@ -167,7 +163,7 @@ public class AsyncMessagePump<T>
         lock (_queue) {
             if (_queue.Count == 0)
 #if NETSTANDARD1_0
-                return _completedTask;
+                return DelegateTuple.CompletedTask;
 #else
                 return Task.CompletedTask;
 #endif
@@ -181,7 +177,7 @@ public class AsyncMessagePump<T>
     /// </summary>
     protected virtual Task HandleErrorAsync(Exception exception)
 #if NETSTANDARD1_0
-        => _completedTask;
+        => DelegateTuple.CompletedTask;
 #else
         => Task.CompletedTask;
 #endif
