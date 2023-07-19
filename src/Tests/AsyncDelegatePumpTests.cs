@@ -243,4 +243,13 @@ public class AsyncDelegatePumpTests
         tcs2.SetResult(true);
         Assert.True(await task2);
     }
+
+    [Fact]
+    public async Task InvalidTimeoutThrows()
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _pump.SendAsync(() => Task.CompletedTask, TimeSpan.FromMilliseconds(-2)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _pump.SendAsync(() => Task.CompletedTask, TimeSpan.FromMilliseconds(0)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _pump.SendAsync(() => Task.FromResult(true), TimeSpan.FromMilliseconds(-2)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _pump.SendAsync(() => Task.FromResult(true), TimeSpan.FromMilliseconds(0)));
+    }
 }
