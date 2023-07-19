@@ -78,14 +78,20 @@ that they were queued with a call to `Post`.  This class is derived from `AsyncM
 see above for further details.  Also included is `SendAsync`, which will queue an asynchronous
 delegate and return its result after it executes (in its turn).  Any further code after
 awaiting a `Task` returned by `SendAsync` will not prevent additional delegates in the queue
-from executing.
+from executing.  `SendAsync` also accepts an optional timeout and cancellation token parameter.
+If the timeout expires before the delegate is executed, a `TimeoutException` is thrown and the
+delegate is not executed.  Similarly, if the cancellation token is triggered before the delegate
+is executed, a `OperationCanceledException` is thrown and the delegate is not executed.
 
 Public methods:
 
 - `void Post(Func<Task> message)`
-- `void Post(Task<Func<Task>> messageTask)` (inherited; not typically used)
 - `Task SendAsync(Func<Task> action)`
+- `Task SendAsync(Func<Task> action, CancellationToken token)`
+- `Task SendAsync(Func<Task> action, TimeSpan timeout, CancellationToken token = default)`
 - `Task<T> SendAsync<T>(Func<Task<T>> action)`
+- `Task<T> SendAsync<T>(Func<Task<T>> action, CancellationToken token)`
+- `Task<T> SendAsync<T>(Func<Task<T>> action, TimeSpan timeout, CancellationToken token = default)`
 - `Task DrainAsync()`
 
 Public properties:
