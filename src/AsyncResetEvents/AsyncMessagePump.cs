@@ -60,14 +60,14 @@ public class AsyncMessagePump<T>
             return ExecuteInternalAsync(callback);
         }
 
-#if NETSTANDARD1_0
-        private static Task TaskCompletedTask => Task.FromResult("");
-#else
-        private static Task TaskCompletedTask => Task.CompletedTask;
-#endif
-
         private Task ExecuteInternalAsync(Func<T, Task> callback)
-            => Delegate == null ? callback(Value!) ?? TaskCompletedTask : ExecuteDelegateAsync(Delegate, callback);
+            => Delegate == null ? callback(Value!) ??
+#if NETSTANDARD1_0
+            DelegateTuple.CompletedTask
+#else
+            Task.CompletedTask
+#endif
+            : ExecuteDelegateAsync(Delegate, callback);
 
         private static async Task ExecuteDelegateAsync(Task<T> executeDelegate, Func<T, Task> callback)
         {
@@ -78,7 +78,7 @@ public class AsyncMessagePump<T>
         }
     }
 
-    private readonly Func<T, Task> _callback;
+    private readonly Func<T, Task> _wrappedCallback;
     private readonly Queue<MessageTuple> _queue = new();
 #if NET5_0_OR_GREATER
     private TaskCompletionSource? _drainTask;
@@ -91,17 +91,31 @@ public class AsyncMessagePump<T>
     /// </summary>
     public AsyncMessagePump(Func<T, Task> callback)
     {
-        _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+        if (callback == null)
+            throw new ArgumentNullException(nameof(callback));
+        _wrappedCallback = async obj => {
+            try {
+                await callback(obj).ConfigureAwait(false);
+            } catch (Exception ex) {
+                // if an error occurs within HandleErrorAsync it will be caught within CompleteAsync
+                await HandleErrorAsync(ex).ConfigureAwait(false);
+            }
+        };
     }
 
     /// <summary>
     /// Initializes a new instances with the specified synchronous callback delegate.
     /// </summary>
     public AsyncMessagePump(Action<T> callback)
+        : this(ConvertCallback(callback))
+    {
+    }
+
+    private static Func<T, Task> ConvertCallback(Action<T> callback)
     {
         if (callback == null)
             throw new ArgumentNullException(nameof(callback));
-        _callback = message => {
+        return message => {
             callback(message);
 #if NETSTANDARD1_0
             return DelegateTuple.CompletedTask;
@@ -167,14 +181,11 @@ public class AsyncMessagePump<T>
             messageTuple = _queue.Peek();
         }
         while (true) {
-            // process the message
+            // process the message (_wrappedCallback contains error handling)
             try {
-                await messageTuple.ExecuteAsync(_callback).ConfigureAwait(false);
-            } catch (Exception ex) {
-                try {
-                    await HandleErrorAsync(ex).ConfigureAwait(false);
-                } catch { }
+                await messageTuple.ExecuteAsync(_wrappedCallback).ConfigureAwait(false);
             }
+            catch { }
 
             // once the message has been passed along, dequeue it
             lock (_queue) {
