@@ -52,6 +52,9 @@ was posted and it throws an exception, or if the callback throws an exception, t
 is handled by the `HandleErrorAsync` protected method, which can be overridden by a user in
 a derived class.  `DrainAsync` is provided to wait for pending messages to be processed.
 
+Note that the ExecutionContext is captured during the `Post` call and restored while the
+callback (and/or the error handler) is executed.
+
 Constructors:
 
 - `AsyncMessagePump(Func<T, Task> callback)`
@@ -82,6 +85,9 @@ from executing.  `SendAsync` also accepts an optional timeout and cancellation t
 If the timeout expires before the delegate is executed, a `TimeoutException` is thrown and the
 delegate is not executed.  Similarly, if the cancellation token is triggered before the delegate
 is executed, a `OperationCanceledException` is thrown and the delegate is not executed.
+
+Note that the ExecutionContext is captured during the call to `SendAsync` and restored while
+the delegate is executed.
 
 Public methods:
 

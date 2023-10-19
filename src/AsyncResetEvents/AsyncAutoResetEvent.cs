@@ -172,7 +172,7 @@ public sealed class AsyncAutoResetEvent
             }
 
             // otherwise, we need to run the waiting code on a background thread
-            // the follwing is equivalent to Task.Run with state
+            // the following is equivalent to Task.Run with state
             _ = Task.Factory.StartNew(
                 static mre => ((AsyncAutoResetEvent)mre!).Set(false),
                 this,

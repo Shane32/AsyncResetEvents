@@ -179,6 +179,88 @@ public class AsyncMessagePumpTests
         Assert.True(task.IsCompleted);
     }
 
+    [Fact]
+    public async Task ExecutionContextCopied()
+    {
+        var al = new AsyncLocal<string?>();
+        int success = 0;
+        int expectedSuccess = 3;
+        var tcs = new TaskCompletionSource<int>();
+        var pump = new AsyncMessagePump<string?>(async str => {
+            await Task.Delay(100);
+            if (str == al.Value) {
+                var incremented = Interlocked.Increment(ref success);
+                if (incremented == expectedSuccess)
+                    tcs.SetResult(incremented);
+            }
+        });
+
+        al.Value = "1";
+        pump.Post("1");
+        al.Value = "2";
+        pump.Post(Task.FromResult<string?>("2"));
+        al.Value = "3";
+        pump.Post("3");
+        al.Value = null;
+
+        await tcs.Task;
+    }
+
+#if NETCOREAPP2_1_OR_GREATER
+    [Fact]
+    public async Task ExecutionContextCopiedFromDefault()
+    {
+        Task t;
+        // erase all execution context
+        using (ExecutionContext.SuppressFlow()) {
+            t = Task.Run(async () => {
+                // now there is no execution context
+                Assert.True(IsDefaultExecutionContext());
+
+                var al = new AsyncLocal<string?>();
+                int success = 0;
+                int expectedSuccess = 4;
+                var tcs = new TaskCompletionSource<int>();
+                var pump = new AsyncMessagePump<string?>(async str => {
+                    await Task.Delay(100);
+                    if (str == null) {
+                        if (IsDefaultExecutionContext()) {
+                            var incremented = Interlocked.Increment(ref success);
+                            if (incremented == expectedSuccess)
+                                tcs.SetResult(incremented);
+                        }
+                    } else if (str == al.Value) {
+                        var incremented = Interlocked.Increment(ref success);
+                        if (incremented == expectedSuccess)
+                            tcs.SetResult(incremented);
+                    }
+                });
+
+                pump.Post((string?)null);
+                Assert.True(IsDefaultExecutionContext());
+                al.Value = "1";
+                Assert.False(IsDefaultExecutionContext());
+                pump.Post("1");
+                al.Value = "2";
+                pump.Post(Task.FromResult<string?>("2"));
+                al.Value = "3";
+                pump.Post("3");
+                al.Value = null;
+
+                await tcs.Task;
+            });
+        }
+        await t;
+
+        bool IsDefaultExecutionContext()
+        {
+            using var context = ExecutionContext.Capture();
+            var isDefaultProperty = typeof(ExecutionContext).GetProperty("IsDefault", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            return (bool)isDefaultProperty.GetValue(context)!;
+        }
+    }
+#endif
+
     public class DerivedAsyncMessagePump : AsyncMessagePump<string>
     {
         private readonly StringBuilder _sb;

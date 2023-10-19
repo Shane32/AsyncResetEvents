@@ -19,13 +19,56 @@ namespace Shane32.AsyncResetEvents;
 /// </summary>
 public class AsyncMessagePump<T>
 {
-    private struct MessageTuple
+    private class MessageTuple
     {
         public T? Value;
         public Task<T>? Delegate;
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+        private readonly ExecutionContext? _context = ExecutionContext.Capture(); // only returns null when ExecutionContext.IsFlowSuppressed() == true, not for default/empty contexts
+        private object? _state;
+#endif
+
+        public Task ExecuteAsync(Func<T, Task> callback)
+        {
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+            if (_context != null) {
+                _state = callback;
+                ExecutionContext.Run(
+                    _context,
+                    static state => {
+                        var messageTuple = (MessageTuple)state!;
+                        var callback = (Func<T, Task>)messageTuple._state!;
+                        var returnTask = messageTuple.ExecuteInternalAsync(callback);
+                        messageTuple._state = returnTask;
+                    },
+                    this);
+                var returnTask = (Task)_state!;
+                _state = null;
+                return returnTask;
+            }
+#endif
+            return ExecuteInternalAsync(callback);
+        }
+
+        private Task ExecuteInternalAsync(Func<T, Task> callback)
+            => Delegate == null ? callback(Value!) ??
+#if NETSTANDARD1_0
+            DelegateTuple.CompletedTask
+#else
+            Task.CompletedTask
+#endif
+            : ExecuteDelegateAsync(Delegate, callback);
+
+        private static async Task ExecuteDelegateAsync(Task<T> executeDelegate, Func<T, Task> callback)
+        {
+            var message = await executeDelegate.ConfigureAwait(false);
+            var callbackTask = callback(message);
+            if (callbackTask != null)
+                await callbackTask.ConfigureAwait(false);
+        }
     }
 
-    private readonly Func<T, Task> _callback;
+    private readonly Func<T, Task> _wrappedCallback;
     private readonly Queue<MessageTuple> _queue = new();
 #if NET5_0_OR_GREATER
     private TaskCompletionSource? _drainTask;
@@ -38,17 +81,31 @@ public class AsyncMessagePump<T>
     /// </summary>
     public AsyncMessagePump(Func<T, Task> callback)
     {
-        _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+        if (callback == null)
+            throw new ArgumentNullException(nameof(callback));
+        _wrappedCallback = async obj => {
+            try {
+                await callback(obj).ConfigureAwait(false);
+            } catch (Exception ex) {
+                // if an error occurs within HandleErrorAsync it will be caught within CompleteAsync
+                await HandleErrorAsync(ex).ConfigureAwait(false);
+            }
+        };
     }
 
     /// <summary>
     /// Initializes a new instances with the specified synchronous callback delegate.
     /// </summary>
     public AsyncMessagePump(Action<T> callback)
+        : this(ConvertCallback(callback))
+    {
+    }
+
+    private static Func<T, Task> ConvertCallback(Action<T> callback)
     {
         if (callback == null)
             throw new ArgumentNullException(nameof(callback));
-        _callback = message => {
+        return message => {
             callback(message);
 #if NETSTANDARD1_0
             return DelegateTuple.CompletedTask;
@@ -114,19 +171,11 @@ public class AsyncMessagePump<T>
             messageTuple = _queue.Peek();
         }
         while (true) {
-            // process the message
+            // process the message (_wrappedCallback contains error handling)
             try {
-                var message = messageTuple.Delegate != null
-                    ? await messageTuple.Delegate.ConfigureAwait(false)
-                    : messageTuple.Value!;
-                var callbackTask = _callback(message);
-                if (callbackTask != null)
-                    await callbackTask.ConfigureAwait(false);
-            } catch (Exception ex) {
-                try {
-                    await HandleErrorAsync(ex).ConfigureAwait(false);
-                } catch { }
+                await messageTuple.ExecuteAsync(_wrappedCallback).ConfigureAwait(false);
             }
+            catch { }
 
             // once the message has been passed along, dequeue it
             lock (_queue) {
