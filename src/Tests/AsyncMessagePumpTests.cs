@@ -179,6 +179,25 @@ public class AsyncMessagePumpTests
         Assert.True(task.IsCompleted);
     }
 
+    [Fact]
+    public async Task ExecutionContextIsNotCopied()
+    {
+        var al = new AsyncLocal<string?>();
+        var tcs = new TaskCompletionSource<(string Input, string? AsyncLocal)>();
+        var pump = new AsyncMessagePump<string>(str => {
+            Assert.False(ExecutionContext.IsFlowSuppressed());
+            tcs.SetResult((str, al.Value));
+        });
+        pump.SuppressAsyncFlow = true;
+
+        al.Value = "1";
+        pump.Post("test");
+        var ret = await tcs.Task;
+        Assert.Equal("test", ret.Input);
+        Assert.Null(ret.AsyncLocal);
+        Assert.Equal("1", al.Value);
+    }
+
     public class DerivedAsyncMessagePump : AsyncMessagePump<string>
     {
         private readonly StringBuilder _sb;

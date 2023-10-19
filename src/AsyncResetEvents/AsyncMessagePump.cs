@@ -34,6 +34,24 @@ public class AsyncMessagePump<T>
 #endif
 
     /// <summary>
+    /// Suppresses the flow of the execution context to the asynchronous callback delegate.
+    /// When <see langword="false"/>, the execution context is copied from the first call
+    /// to <see cref="Post(T)">Post</see>, and this context persists until the queue has
+    /// been depleted.
+    /// </summary>
+    /// <remarks>
+    /// Setting this value to <see langword="true"/> also causes the delegate to always
+    /// execute on a new thread-pool thread.
+    /// <br/><br/>
+    /// This property is ignored for .NET Standard 1.0 and .NET Standard 1.3 TFMs
+    /// </remarks>
+    public virtual bool SuppressAsyncFlow {
+        get => _suppressAsyncFlow;
+        set => _suppressAsyncFlow = value;
+    }
+    private bool _suppressAsyncFlow;
+
+    /// <summary>
     /// Initializes a new instances with the specified asynchronous callback delegate.
     /// </summary>
     public AsyncMessagePump(Func<T, Task> callback)
@@ -85,7 +103,23 @@ public class AsyncMessagePump<T>
         }
 
         if (attach) {
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+            if (_suppressAsyncFlow) {
+                using (ExecutionContext.SuppressFlow()) {
+                    // the follwing is equivalent to Task.Run with state
+                    _ = Task.Factory.StartNew(
+                        static amp => ((AsyncMessagePump<T>)amp!).CompleteAsync(),
+                        this,
+                        default,
+                        TaskCreationOptions.DenyChildAttach,
+                        TaskScheduler.Default);
+                }
+            } else {
+                CompleteAsync();
+            }
+#else
             CompleteAsync();
+#endif
         }
     }
 
@@ -93,8 +127,7 @@ public class AsyncMessagePump<T>
     /// Returns the number of messages waiting in the queue.
     /// Includes the message currently being processed, if any.
     /// </summary>
-    public int Count
-    {
+    public int Count {
         get {
             lock (_queue) {
                 return _queue.Count;

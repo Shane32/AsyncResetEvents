@@ -21,16 +21,22 @@ public class AsyncDelegatePumpTests
     [Fact]
     public async Task Basic()
     {
+        var al = new AsyncLocal<string?>();
+        al.Value = "a";
         _pump.Post(async () => {
             await Task.Delay(100);
+            Assert.Equal("a", al.Value);
             WriteLine("100");
         });
+        al.Value = "b";
         _pump.Post(async () => {
             Verify("100 ");
             await Task.Delay(1);
+            Assert.Equal("b", al.Value);
             WriteLine("1");
             _reset.Set();
         });
+        al.Value = null;
         Verify("");
         await _reset.WaitAsync();
         Verify("100 1 ");

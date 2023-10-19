@@ -87,7 +87,7 @@ internal sealed class DelegateTuple : IDelegateTuple
         _cancellationTokenRegistration?.Dispose();
         Task task;
         try {
-            task = _action.Invoke();
+            task = InvokeAsync();
         } catch (Exception ex) {
             _taskCompletionSource.SetException(ex);
             throw;
@@ -106,5 +106,29 @@ internal sealed class DelegateTuple : IDelegateTuple
 #endif
         }, this, TaskContinuationOptions.ExecuteSynchronously);
         return task;
+    }
+
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+    private Task? _returnValue;
+    private readonly ExecutionContext? _executionContext = ExecutionContext.Capture();
+#endif
+
+    private Task InvokeAsync()
+    {
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+        if (_executionContext != null) {
+            ExecutionContext.Run(
+                _executionContext,
+                static state => {
+                    var simpleTuple = (DelegateTuple)state!;
+                    simpleTuple._returnValue = simpleTuple._action();
+                },
+                this);
+            var ret = _returnValue!;
+            _returnValue = null;
+            return ret;
+        }
+#endif
+        return _action();
     }
 }

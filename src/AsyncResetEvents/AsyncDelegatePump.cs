@@ -11,6 +11,16 @@ public class AsyncDelegatePump : AsyncMessagePump<IDelegateTuple>
     /// </summary>
     public AsyncDelegatePump() : base(static info => info.ExecuteAsync())
     {
+        base.SuppressAsyncFlow = true;
+    }
+
+    /// <summary>
+    /// This setting has no effect within <see cref="AsyncDelegatePump"/>.
+    /// The execution context is always cloned from the posting thread onto the delegate.
+    /// </summary>
+    public override bool SuppressAsyncFlow {
+        get => false;
+        set { }
     }
 
     /// <summary>
@@ -70,10 +80,34 @@ public class AsyncDelegatePump : AsyncMessagePump<IDelegateTuple>
     private class SimpleTuple : IDelegateTuple
     {
         private readonly Func<Task> _action;
+
         public SimpleTuple(Func<Task> action)
         {
             _action = action;
         }
-        public Task ExecuteAsync() => _action();
+
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+        private Task? _returnValue;
+        private readonly ExecutionContext? _executionContext = ExecutionContext.Capture();
+#endif
+
+        public Task ExecuteAsync()
+        {
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+            if (_executionContext != null) {
+                ExecutionContext.Run(
+                    _executionContext,
+                    static state => {
+                        var simpleTuple = (SimpleTuple)state!;
+                        simpleTuple._returnValue = simpleTuple._action();
+                    },
+                    this);
+                var ret = _returnValue!;
+                _returnValue = null;
+                return ret;
+            }
+#endif
+            return _action();
+        }
     }
 }
