@@ -16,7 +16,8 @@ public class AsyncDelegatePump : AsyncMessagePump<IDelegateTuple>
 
     /// <summary>
     /// This setting has no effect within <see cref="AsyncDelegatePump"/>.
-    /// The execution context is always cloned from the posting thread onto the delegate.
+    /// The execution context is always cloned from the posting thread onto the delegate,
+    /// except when running on the .NET Standard 1.0 or .NET Standard 1.3 TFMs.
     /// </summary>
     public override bool SuppressAsyncFlow {
         get => false;
