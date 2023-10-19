@@ -24,27 +24,17 @@ public class AsyncMessagePump<T>
         public T? Value;
         public Task<T>? Delegate;
 #if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
-        private readonly ExecutionContext? _context = ExecutionContext.Capture();
+        private readonly ExecutionContext? _context = ExecutionContext.Capture(); // only returns null when ExecutionContext.IsFlowSuppressed() == true, not for default/empty contexts
         private object? _state;
-        private static readonly ExecutionContext? _defaultContext;
-
-        static MessageTuple()
-        {
-            //note: this 'Default' field doesn't exist for .NET Framework; maybe there's no such thing and an execution context always exists
-            var defaultField = typeof(ExecutionContext).GetField("Default", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-            if (defaultField != null && defaultField.FieldType == typeof(ExecutionContext))
-                _defaultContext = (ExecutionContext?)defaultField.GetValue(null);
-        }
 #endif
 
         public Task ExecuteAsync(Func<T, Task> callback)
         {
 #if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
-            var context = _context ?? _defaultContext;
-            if (context != null) {
+            if (_context != null) {
                 _state = callback;
                 ExecutionContext.Run(
-                    context,
+                    _context,
                     static state => {
                         var messageTuple = (MessageTuple)state!;
                         var callback = (Func<T, Task>)messageTuple._state!;
