@@ -19,10 +19,63 @@ namespace Shane32.AsyncResetEvents;
 /// </summary>
 public class AsyncMessagePump<T>
 {
-    private struct MessageTuple
+    private class MessageTuple
     {
         public T? Value;
         public Task<T>? Delegate;
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+        private readonly ExecutionContext? _context = ExecutionContext.Capture();
+        private object? _state;
+        private static readonly ExecutionContext? _defaultContext;
+
+        static MessageTuple()
+        {
+            //note: this 'Default' field doesn't exist for .NET Framework; maybe there's no such thing and an execution context always exists
+            var defaultField = typeof(ExecutionContext).GetField("Default", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            if (defaultField != null && defaultField.FieldType == typeof(ExecutionContext))
+                _defaultContext = (ExecutionContext?)defaultField.GetValue(null);
+        }
+#endif
+
+        public Task ExecuteAsync(Func<T, Task> callback)
+        {
+#if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
+            var context = _context ?? _defaultContext;
+            if (context != null) {
+                _state = callback;
+                ExecutionContext.Run(
+                    context,
+                    static state => {
+                        var messageTuple = (MessageTuple)state!;
+                        var callback = (Func<T, Task>)messageTuple._state!;
+                        var returnTask = messageTuple.ExecuteInternalAsync(callback);
+                        messageTuple._state = returnTask;
+                    },
+                    this);
+                var returnTask = (Task)_state!;
+                _state = null;
+                return returnTask;
+            }
+#endif
+            return ExecuteInternalAsync(callback);
+        }
+
+#if NETSTANDARD1_0
+        private static Task TaskCompletedTask => Task.FromResult("");
+#else
+        private static Task TaskCompletedTask => Task.CompletedTask;
+#endif
+
+        private Task ExecuteInternalAsync(Func<T, Task> callback)
+            => Delegate == null ? callback(Value!) ?? TaskCompletedTask : ExecuteDelegateAsync(Delegate, callback);
+
+        private static async Task ExecuteDelegateAsync(Task<T> executeDelegate, Func<T, Task> callback)
+        {
+            var message = await executeDelegate.ConfigureAwait(false);
+            var callbackTask = callback(message);
+            if (callbackTask != null)
+                await callbackTask.ConfigureAwait(false);
+        }
     }
 
     private readonly Func<T, Task> _callback;
@@ -116,12 +169,7 @@ public class AsyncMessagePump<T>
         while (true) {
             // process the message
             try {
-                var message = messageTuple.Delegate != null
-                    ? await messageTuple.Delegate.ConfigureAwait(false)
-                    : messageTuple.Value!;
-                var callbackTask = _callback(message);
-                if (callbackTask != null)
-                    await callbackTask.ConfigureAwait(false);
+                await messageTuple.ExecuteAsync(_callback).ConfigureAwait(false);
             } catch (Exception ex) {
                 try {
                     await HandleErrorAsync(ex).ConfigureAwait(false);
