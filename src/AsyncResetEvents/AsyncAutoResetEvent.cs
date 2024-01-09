@@ -35,8 +35,12 @@ public sealed class AsyncAutoResetEvent
     public Task<bool> WaitAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
         // validate arguments
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfLessThan(millisecondsTimeout, -1);
+#else
         if (millisecondsTimeout < -1)
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+#endif
 
         // if the cancellation token is signaled, throw immediately
 #if NETSTANDARD1_0
