@@ -6,8 +6,12 @@ internal static class TaskExtensions
 
     public static Task<bool> WaitOrFalseAsync(this Task<bool> task, int millisecondsTimeout, CancellationToken cancellationToken)
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfLessThan(millisecondsTimeout, -1);
+#else
         if (millisecondsTimeout < -1)
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+#endif
         if (task.IsCompleted || (millisecondsTimeout == -1 && !cancellationToken.CanBeCanceled))
             return task;
         if (millisecondsTimeout == 0)

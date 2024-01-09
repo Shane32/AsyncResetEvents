@@ -81,8 +81,13 @@ public class AsyncMessagePump<T>
     /// </summary>
     public AsyncMessagePump(Func<T, Task> callback)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(callback);
+#else
         if (callback == null)
             throw new ArgumentNullException(nameof(callback));
+#endif
+
         _wrappedCallback = async obj => {
             try {
                 await callback(obj).ConfigureAwait(false);
@@ -103,8 +108,13 @@ public class AsyncMessagePump<T>
 
     private static Func<T, Task> ConvertCallback(Action<T> callback)
     {
+#if NET6_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(callback);
+#else
         if (callback == null)
             throw new ArgumentNullException(nameof(callback));
+#endif
+
         return message => {
             callback(message);
 #if NETSTANDARD1_0
