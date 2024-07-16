@@ -76,9 +76,9 @@ public sealed class AsyncAutoResetEvent
 
 #if NET6_0_OR_GREATER
         // otherwise, we need to wait on the task and the timeout/cancellation token
-        return WaitOrFalseAsync(task, millisecondsTimeout, cancellationToken);
+        return WaitOrFalseAsync(this, task, millisecondsTimeout, cancellationToken);
 
-        async Task<bool> WaitOrFalseAsync(Task task, int millisecondsTimeout, CancellationToken cancellationToken)
+        static async Task<bool> WaitOrFalseAsync(AsyncAutoResetEvent are, Task task, int millisecondsTimeout, CancellationToken cancellationToken)
         {
             try {
                 // wait for the event to be signaled, or the timeout to expire, or the cancellation token to be signaled
@@ -90,7 +90,7 @@ public sealed class AsyncAutoResetEvent
                 // if a timeout occurs, then when the reset event is signaled, we need to trigger the next task in the queue
                 _ = task.ContinueWith(
                     static (task2, state) => ((AsyncAutoResetEvent)state!).Set(),
-                    this,
+                    are,
                     TaskContinuationOptions.ExecuteSynchronously);
 
                 // return false indicating that the event was not signaled within the timeout period
@@ -99,7 +99,7 @@ public sealed class AsyncAutoResetEvent
                 // if the cancellation token is signaled, then when the reset event is signaled, we need to trigger the next task in the queue
                 _ = task.ContinueWith(
                     static (task2, state) => ((AsyncAutoResetEvent)state!).Set(),
-                    this,
+                    are,
                     TaskContinuationOptions.ExecuteSynchronously);
                 // throw the cancellation exception
                 throw;
