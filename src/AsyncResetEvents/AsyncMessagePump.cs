@@ -19,14 +19,24 @@ namespace Shane32.AsyncResetEvents;
 /// </summary>
 public class AsyncMessagePump<T>
 {
-    private class MessageTuple
+    private sealed class MessageTuple
     {
-        public T? Value;
-        public Task<T>? Delegate;
+        public readonly T? Value;
+        public readonly Task<T>? Delegate;
 #if NETSTANDARD2_0_OR_GREATER || NET5_0_OR_GREATER
         private readonly ExecutionContext? _context = ExecutionContext.Capture(); // only returns null when ExecutionContext.IsFlowSuppressed() == true, not for default/empty contexts
         private object? _state;
 #endif
+
+        public MessageTuple(T value)
+        {
+            Value = value;
+        }
+
+        public MessageTuple(Task<T> delegateTask)
+        {
+            Delegate = delegateTask;
+        }
 
         public Task ExecuteAsync(Func<T, Task> callback)
         {
@@ -129,13 +139,13 @@ public class AsyncMessagePump<T>
     /// Posts the specified message to the message queue.
     /// </summary>
     public void Post(T message)
-        => PostCore(new MessageTuple { Value = message });
+        => PostCore(new MessageTuple(message));
 
     /// <summary>
     /// Posts the result of an asynchronous operation to the message queue.
     /// </summary>
     public void Post(Task<T> messageTask)
-        => PostCore(new MessageTuple { Delegate = messageTask });
+        => PostCore(new MessageTuple(messageTask));
 
     /// <summary>
     /// Posts the result of an asynchronous operation to the message queue.
